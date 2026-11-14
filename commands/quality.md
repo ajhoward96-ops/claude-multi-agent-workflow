@@ -11,10 +11,13 @@ Follow these steps in order. Do not skip ahead.
 
 These two jobs do not depend on each other, so start both at the same time, in a single message with two subagent calls:
 
-- **code-reviewer** subagent: review every source file in the target and return its review report.
+- **code-reviewer** subagent: review every source file in the target and return its review report. The report must include:
+  - a **Verdict** line (`SHIP`, `SHIP WITH FIXES` or `DO NOT SHIP`);
+  - a **Findings** table with a severity (`high`, `medium` or `low`) for each finding;
+  - a **Behaviors that need tests** list, one line per behavior (write "none" if empty).
 - **coverage-mapper** subagent: map the target's source paths to its existing tests and return the coverage map and gap list.
 
-Wait until both have returned before going on.
+Wait until both have returned before going on. If the reviewer's report is missing the Verdict, the severity findings or the "Behaviors that need tests" list, send it back to code-reviewer and ask for the missing sections before Step 2. Steps 2 and 4 depend on them.
 
 ## Step 2 — Write the missing tests (depends on Step 1)
 
