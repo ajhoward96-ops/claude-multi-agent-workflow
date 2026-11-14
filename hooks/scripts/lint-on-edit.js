@@ -3,7 +3,8 @@
 // - Reads the hook payload (JSON) from stdin.
 // - Finds the nearest project that has ESLint installed and a config.
 // - Exit 0: nothing to do, or the file is clean (warnings are allowed).
-// - Exit 2: ESLint reported errors; stderr is shown to Claude so it fixes them.
+// - Exit 2: ESLint reported errors, or ESLint could not run (config error,
+//   crash, timeout); stderr is shown to Claude so it can act on it.
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
@@ -48,11 +49,30 @@ const result = spawnSync(project.eslintBin, ['--format', 'stylish', file], {
   timeout: 25000,
 });
 
+const rel = path.relative(project.dir, file);
+
+// ESLint ran and found lint errors: send them back so Claude fixes them.
 if (result.status === 1) {
   process.stderr.write(
-    `ESLint found errors in ${path.relative(project.dir, file)}. Fix them before continuing:\n` +
+    `ESLint found errors in ${rel}. Fix them before continuing:\n` +
       (result.stdout || result.stderr)
   );
   process.exit(2);
 }
+
+// ESLint could not finish (spawn error, timeout, crash, or exit 2 for a
+// config/runtime error). Never report that as a clean result.
+if (result.error || result.status !== 0) {
+  const reason = result.error
+    ? result.error.message
+    : result.status === null
+      ? `terminated by signal ${result.signal || 'unknown'}`
+      : `exit code ${result.status}`;
+  process.stderr.write(
+    `Lint hook could not lint ${rel} (${reason}). The file was NOT verified as lint-clean.\n` +
+      (result.stderr || result.stdout || '')
+  );
+  process.exit(2);
+}
+
 process.exit(0);
